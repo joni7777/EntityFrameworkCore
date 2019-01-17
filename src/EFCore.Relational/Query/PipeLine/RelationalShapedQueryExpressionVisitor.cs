@@ -189,12 +189,6 @@ namespace Microsoft.EntityFrameworkCore.Relational.Query.PipeLine
                         property,
                         property.FindRelationalMapping(),
                         methodCallExpression.Type);
-
-                    //return Expression.Call(
-                    //    methodCallExpression.Method,
-                    //    InMemoryQueryExpression.ValueBufferParameter,
-                    //    Expression.Constant(indexOffset + originalIndex),
-                    //    methodCallExpression.Arguments[2]);
                 }
 
                 return base.VisitMethodCall(methodCallExpression);
