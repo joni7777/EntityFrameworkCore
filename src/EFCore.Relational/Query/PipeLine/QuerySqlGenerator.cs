@@ -43,7 +43,7 @@ namespace Microsoft.EntityFrameworkCore.Relational.Query.PipeLine
             _sqlGenerationHelper = sqlGenerationHelper;
         }
 
-        public virtual IRelationalCommand GenerateSql(
+        public virtual IRelationalCommand GetCommand(
             SelectExpression selectExpression,
             IReadOnlyDictionary<string, object> parameterValues)
         {

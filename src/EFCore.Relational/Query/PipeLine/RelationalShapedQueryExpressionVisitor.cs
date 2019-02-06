@@ -107,7 +107,7 @@ namespace Microsoft.EntityFrameworkCore.Relational.Query.PipeLine
                         try
                         {
                             var relationalCommand = _querySqlGenerator
-                                .GenerateSql(_selectExpression, _relationalQueryContext.ParameterValues);
+                                .GetCommand(_selectExpression, _relationalQueryContext.ParameterValues);
 
                             _dataReader
                                 = relationalCommand.ExecuteReader(

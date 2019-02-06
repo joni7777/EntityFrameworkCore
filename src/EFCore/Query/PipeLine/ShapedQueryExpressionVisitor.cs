@@ -99,9 +99,9 @@ namespace Microsoft.EntityFrameworkCore.Query.PipeLine
                 _entityMaterializerSource = entityMaterializerSource;
             }
 
-            protected override Expression VisitExtension(Expression extensionExpresssion)
+            protected override Expression VisitExtension(Expression extensionExpression)
             {
-                if (extensionExpresssion is EntityShaperExpression entityShaperExpression)
+                if (extensionExpression is EntityShaperExpression entityShaperExpression)
                 {
                     var materializationContext = Expression.Variable(typeof(MaterializationContext), "materializationContext" + _currentEntityIndex);
                     Variables.Add(materializationContext);
@@ -133,12 +133,12 @@ namespace Microsoft.EntityFrameworkCore.Query.PipeLine
                     return materializationExpression.Expressions.Last();
                 }
 
-                if (extensionExpresssion is ProjectionBindingExpression)
+                if (extensionExpression is ProjectionBindingExpression)
                 {
-                    return extensionExpresssion;
+                    return extensionExpression;
                 }
 
-                return base.VisitExtension(extensionExpresssion);
+                return base.VisitExtension(extensionExpression);
             }
         }
     }
