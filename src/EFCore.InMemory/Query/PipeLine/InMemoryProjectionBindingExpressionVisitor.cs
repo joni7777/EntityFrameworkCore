@@ -11,7 +11,7 @@ namespace Microsoft.EntityFrameworkCore.InMemory.Query.PipeLine
     public class InMemoryProjectionBindingExpressionVisitor : ExpressionVisitor
     {
         private readonly InMemoryQueryExpression _queryExpression;
-        private readonly Translator _translator;
+        private readonly InMemoryExpressionTranslatingExpressionVisitor _translator;
         private readonly IDictionary<ProjectionMember, Expression> _projectionMapping
             = new Dictionary<ProjectionMember, Expression>();
 
@@ -20,7 +20,7 @@ namespace Microsoft.EntityFrameworkCore.InMemory.Query.PipeLine
         public InMemoryProjectionBindingExpressionVisitor(InMemoryQueryExpression queryExpression)
         {
             _queryExpression = queryExpression;
-            _translator = new Translator(queryExpression);
+            _translator = new InMemoryExpressionTranslatingExpressionVisitor(queryExpression);
         }
 
         public Expression Translate(Expression expression)

@@ -15,12 +15,18 @@ namespace Microsoft.EntityFrameworkCore.Relational.Query.PipeLine
             = new Dictionary<ProjectionMember, Expression>();
 
         private List<TableExpressionBase> _tables = new List<TableExpressionBase>();
-        private readonly List<Expression> _projection = new List<Expression>();
-        private Expression _predicate;
+        private readonly List<SqlExpression> _projection = new List<SqlExpression>();
+        private SqlExpression _predicate;
+        private SqlExpression _limit;
+        private SqlExpression _offset;
+        private List<OrderingExpression> _orderings = new List<OrderingExpression>();
 
-        public IReadOnlyList<Expression> Projection => _projection;
+        public IReadOnlyList<SqlExpression> Projection => _projection;
         public IReadOnlyList<TableExpressionBase> Tables => _tables;
-        public Expression Predicate => _predicate;
+        public IReadOnlyList<OrderingExpression> Orderings => _orderings;
+        public SqlExpression Predicate => _predicate;
+        public SqlExpression Limit => _limit;
+        public SqlExpression Offset => _offset;
 
         public SelectExpression(IEntityType entityType)
             : base("")
@@ -59,7 +65,7 @@ namespace Microsoft.EntityFrameworkCore.Relational.Query.PipeLine
                 }
                 else
                 {
-                    _projection.Add(keyValuePair.Value);
+                    _projection.Add((SqlExpression)keyValuePair.Value);
                     index++;
                 }
             }
@@ -67,7 +73,7 @@ namespace Microsoft.EntityFrameworkCore.Relational.Query.PipeLine
             return result;
         }
 
-        public void AddToPredicate(Expression expression)
+        public void ApplyPredicate(SqlExpression expression)
         {
             _predicate = expression;
         }
@@ -83,5 +89,38 @@ namespace Microsoft.EntityFrameworkCore.Relational.Query.PipeLine
         {
             return _projectionMapping[projectionMember];
         }
+
+        public void ApplyOrderBy(OrderingExpression orderingExpression)
+        {
+            _orderings.Clear();
+            _orderings.Add(orderingExpression);
+        }
+
+        public void ApplyThenBy(OrderingExpression orderingExpression)
+        {
+            _orderings.Add(orderingExpression);
+        }
+
+        public void ApplyLimit(SqlExpression sqlExpression)
+        {
+            _limit = sqlExpression;
+        }
+
+        public void ApplyOffset(SqlExpression sqlExpression)
+        {
+            _offset = sqlExpression;
+        }
+    }
+
+    public class OrderingExpression : Expression
+    {
+        public OrderingExpression(SqlExpression expression, bool ascending)
+        {
+            Expression = expression;
+            Ascending = ascending;
+        }
+
+        public SqlExpression Expression { get; }
+        public bool Ascending { get; }
     }
 }

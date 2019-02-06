@@ -3,22 +3,45 @@
 
 using System.Linq.Expressions;
 using System.Reflection;
+using Microsoft.EntityFrameworkCore.Extensions.Internal;
 using Microsoft.EntityFrameworkCore.Query.PipeLine;
 using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Microsoft.EntityFrameworkCore.Relational.Query.PipeLine
 {
-    public class SqlTranslator : ExpressionVisitor
+    public class RelationalSqlTranslatingExpressionVisitor : ExpressionVisitor
     {
         private readonly IRelationalTypeMappingSource _typeMappingSource;
         private readonly SelectExpression _selectExpression;
         private readonly TypeMappingInferringExpressionVisitor _typeInference;
 
-        public SqlTranslator(IRelationalTypeMappingSource typeMappingSource, SelectExpression selectExpression)
+        public RelationalSqlTranslatingExpressionVisitor(
+            IRelationalTypeMappingSource typeMappingSource, SelectExpression selectExpression)
         {
             _typeInference = new TypeMappingInferringExpressionVisitor();
             _typeMappingSource = typeMappingSource;
             _selectExpression = selectExpression;
+        }
+
+        public SqlExpression Translate(Expression expression, bool condition)
+        {
+            var translation = Visit(expression);
+
+            var sqlExpression = translation as SqlExpression;
+
+            if (sqlExpression == null)
+            {
+                sqlExpression = new SqlExpression(translation, _typeMappingSource.FindMapping(translation.Type));
+            }
+
+            if (condition
+                && !sqlExpression.IsCondition
+                && sqlExpression.TypeMapping == _typeMappingSource.FindMapping(typeof(bool)))
+            {
+                sqlExpression = new SqlExpression(sqlExpression.Expression, true);
+            }
+
+            return sqlExpression;
         }
 
         protected override Expression VisitMember(MemberExpression memberExpression)
@@ -33,6 +56,23 @@ namespace Microsoft.EntityFrameworkCore.Relational.Query.PipeLine
             }
 
             return memberExpression.Update(innerExpression);
+        }
+
+        protected override Expression VisitMethodCall(MethodCallExpression methodCallExpression)
+        {
+            if (methodCallExpression.Method.IsEFPropertyMethod())
+            {
+                var firstArgument = Visit(methodCallExpression.Arguments[0]);
+                if (firstArgument is EntityShaperExpression entityShaper)
+                {
+                    var entityType = entityShaper.EntityType;
+                    var property = entityType.FindProperty((string)((ConstantExpression)methodCallExpression.Arguments[1]).Value);
+
+                    return _selectExpression.BindProperty(entityShaper.ValueBufferExpression, property);
+                }
+            }
+
+            return base.VisitMethodCall(methodCallExpression);
         }
 
         protected override Expression VisitBinary(BinaryExpression binaryExpression)

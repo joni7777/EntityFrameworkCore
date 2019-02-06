@@ -65,6 +65,7 @@ namespace Microsoft.EntityFrameworkCore.InMemory.Query.PipeLine
         }
 
         public static ParameterExpression ValueBufferParameter = Parameter(typeof(ValueBuffer), "valueBuffer");
+        private static ConstructorInfo _valueBufferConstructor = typeof(ValueBuffer).GetConstructors().Single(ci => ci.GetParameters().Length == 1);
 
         private readonly List<Expression> _valueBufferSlots = new List<Expression>();
         private readonly IDictionary<ProjectionMember, Expression> _projectionMapping = new Dictionary<ProjectionMember, Expression>();
@@ -79,20 +80,17 @@ namespace Microsoft.EntityFrameworkCore.InMemory.Query.PipeLine
             {
                 _valueBufferSlots.Add(CreateReadValueExpression(property.ClrType, property.GetIndex(), property));
             }
-
-            SingleResult = false;
         }
 
-        public bool SingleResult { get; set; }
-
-        public void MakeSingleProjection(Type type)
+        public Expression GetSingleScalarProjection()
         {
-            SingleResult = true;
-
             _valueBufferSlots.Clear();
-            _valueBufferSlots.Add(
-                CreateReadValueExpression(type, 0, null));
+            _valueBufferSlots.Add(CreateReadValueExpression(ServerQueryExpression.Type, 0, null));
+
+            _projectionMapping.Clear();
             _projectionMapping[new ProjectionMember()] = _valueBufferSlots[0];
+
+            return new ProjectionBindingExpression(this, new ProjectionMember(), ServerQueryExpression.Type);
         }
 
         public Expression BindProperty(Expression projectionExpression, IProperty property)
@@ -125,21 +123,16 @@ namespace Microsoft.EntityFrameworkCore.InMemory.Query.PipeLine
             return _projectionMapping[member];
         }
 
-        public Expression GetScalarProjection()
+        public LambdaExpression GetScalarProjectionLambda()
         {
             Debug.Assert(_valueBufferSlots.Count == 1, "Not a scalar query");
 
-            return Call(
-                InMemoryLinqOperatorProvider.Select.MakeGenericMethod(typeof(ValueBuffer), _valueBufferSlots[0].Type),
-                ServerQueryExpression,
-                Lambda(
-                    _valueBufferSlots[0],
-                    ValueBufferParameter));
+            return Lambda(_valueBufferSlots[0], ValueBufferParameter);
         }
 
         public void ApplyServerProjection()
         {
-            if (SingleResult)
+            if (ServerQueryExpression.Type.TryGetSequenceType() == null)
             {
                 if (ServerQueryExpression.Type != typeof(ValueBuffer))
                 {
@@ -147,7 +140,7 @@ namespace Microsoft.EntityFrameworkCore.InMemory.Query.PipeLine
                         typeof(ResultEnumerable).GetConstructors().Single(),
                         Lambda<Func<ValueBuffer>>(
                             New(
-                                typeof(ValueBuffer).GetConstructors().Single(ci => ci.GetParameters().Length == 1),
+                                _valueBufferConstructor,
                                 NewArrayInit(
                                     typeof(object),
                                     new[]
@@ -165,6 +158,7 @@ namespace Microsoft.EntityFrameworkCore.InMemory.Query.PipeLine
                 return;
             }
 
+
             var newValueBufferSlots = _valueBufferSlots
                 .Select((e, i) => CreateReadValueExpression(
                     e.Type,
@@ -174,7 +168,7 @@ namespace Microsoft.EntityFrameworkCore.InMemory.Query.PipeLine
 
             var lambda = Lambda(
                 New(
-                    typeof(ValueBuffer).GetConstructors().Single(ci => ci.GetParameters().Length == 1),
+                    _valueBufferConstructor,
                     NewArrayInit(
                         typeof(object),
                         _valueBufferSlots

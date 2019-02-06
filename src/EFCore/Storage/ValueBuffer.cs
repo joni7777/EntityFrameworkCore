@@ -146,7 +146,7 @@ namespace Microsoft.EntityFrameworkCore.Storage
             unchecked
             {
                 return _values != null
-                    ? _values.Aggregate(_offset.GetHashCode(), (current, value) => (current * 397) ^ value.GetHashCode())
+                    ? _values.Aggregate((_offset.GetHashCode()), (current, value) => (current * 397) ^ (value?.GetHashCode() ?? 0))
                     : _offset.GetHashCode();
             }
         }

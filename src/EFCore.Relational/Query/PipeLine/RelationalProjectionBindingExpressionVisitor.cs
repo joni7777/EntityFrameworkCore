@@ -12,7 +12,7 @@ namespace Microsoft.EntityFrameworkCore.Relational.Query.PipeLine
     public class RelationalProjectionBindingExpressionVisitor : ExpressionVisitor
     {
         private readonly SelectExpression _selectExpression;
-        private readonly SqlTranslator _sqlTranslator;
+        private readonly RelationalSqlTranslatingExpressionVisitor _sqlTranslator;
         private readonly IDictionary<ProjectionMember, Expression> _projectionMapping
             = new Dictionary<ProjectionMember, Expression>();
 
@@ -21,7 +21,7 @@ namespace Microsoft.EntityFrameworkCore.Relational.Query.PipeLine
         public RelationalProjectionBindingExpressionVisitor(
             IRelationalTypeMappingSource typeMappingSource, SelectExpression selectExpression)
         {
-            _sqlTranslator = new SqlTranslator(typeMappingSource, selectExpression);
+            _sqlTranslator = new RelationalSqlTranslatingExpressionVisitor(typeMappingSource, selectExpression);
             _selectExpression = selectExpression;
         }
 
@@ -45,7 +45,7 @@ namespace Microsoft.EntityFrameworkCore.Relational.Query.PipeLine
 
             if (!(expression is NewExpression))
             {
-                var translation = _sqlTranslator.Visit(expression);
+                var translation = _sqlTranslator.Translate(expression, false);
 
                 if (!(translation is SqlExpression))
                 {

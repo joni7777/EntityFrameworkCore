@@ -21,7 +21,8 @@ namespace Microsoft.EntityFrameworkCore.Relational.Query.PipeLine
     {
         private readonly IQuerySqlGeneratorFactory2 _querySqlGeneratorFactory;
 
-        public RelationalShapedQueryExpressionVisitor(IEntityMaterializerSource entityMaterializerSource,
+        public RelationalShapedQueryExpressionVisitor(
+            IEntityMaterializerSource entityMaterializerSource,
             IQuerySqlGeneratorFactory2 querySqlGeneratorFactory)
             : base(entityMaterializerSource)
         {
@@ -33,13 +34,13 @@ namespace Microsoft.EntityFrameworkCore.Relational.Query.PipeLine
             var shaperLambda = InjectEntityMaterializer(shapedQueryExpression.ShaperExpression);
             var selectExpression = (SelectExpression)shapedQueryExpression.QueryExpression;
 
-            var newBody = new ProjectionBindingExpressionVisitor(selectExpression)
+            var newBody = new RelationalProjectionBindingRemovingExpressionVisitor(selectExpression)
                 .Visit(shaperLambda.Body);
 
             shaperLambda = Expression.Lambda(
                 newBody,
                 QueryCompilationContext2.QueryContextParameter,
-                ProjectionBindingExpressionVisitor.DataReaderParameter);
+                RelationalProjectionBindingRemovingExpressionVisitor.DataReaderParameter);
 
             return Expression.New(
                 typeof(QueryingEnumerable<>).MakeGenericType(shaperLambda.ReturnType).GetConstructors()[0],
@@ -137,7 +138,7 @@ namespace Microsoft.EntityFrameworkCore.Relational.Query.PipeLine
             }
         }
 
-        private class ProjectionBindingExpressionVisitor : ExpressionVisitor
+        private class RelationalProjectionBindingRemovingExpressionVisitor : ExpressionVisitor
         {
             public static readonly ParameterExpression DataReaderParameter
                 = Expression.Parameter(typeof(DbDataReader), "dataReader");
@@ -146,7 +147,7 @@ namespace Microsoft.EntityFrameworkCore.Relational.Query.PipeLine
                 = new Dictionary<ParameterExpression, int>();
             private readonly IDictionary<ProjectionMember, int> _projectionIndexMapping;
 
-            public ProjectionBindingExpressionVisitor(SelectExpression selectExpression)
+            public RelationalProjectionBindingRemovingExpressionVisitor(SelectExpression selectExpression)
             {
                 _projectionIndexMapping = selectExpression.ApplyProjection();
                 _selectExpression = selectExpression;
@@ -198,7 +199,6 @@ namespace Microsoft.EntityFrameworkCore.Relational.Query.PipeLine
             {
                 if (extensionExpression is ProjectionBindingExpression projectionBindingExpression)
                 {
-                    var projectionMember = projectionBindingExpression.ProjectionMember;
                     var projection = (SqlExpression)_selectExpression.GetProjectionExpression(projectionBindingExpression.ProjectionMember);
 
                     return CreateGetValueExpression(

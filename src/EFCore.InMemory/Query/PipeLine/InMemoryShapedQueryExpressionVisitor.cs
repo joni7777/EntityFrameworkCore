@@ -42,6 +42,57 @@ namespace Microsoft.EntityFrameworkCore.InMemory.Query.PipeLine
         }
 
 
+        protected override Expression VisitShapedQueryExpression(ShapedQueryExpression shapedQueryExpression)
+        {
+            var shaperLambda = InjectEntityMaterializer(shapedQueryExpression.ShaperExpression);
+
+            var innerEnumerable = Visit(shapedQueryExpression.QueryExpression);
+
+            var newBody = new InMemoryProjectionBindingRemovingExpressionVisitor(
+                (InMemoryQueryExpression)shapedQueryExpression.QueryExpression)
+                .Visit(shaperLambda.Body);
+
+            shaperLambda = Expression.Lambda(
+                newBody,
+                QueryCompilationContext2.QueryContextParameter,
+                InMemoryQueryExpression.ValueBufferParameter);
+
+            return Expression.Call(
+                _shapeMethodInfo.MakeGenericMethod(
+                    innerEnumerable.Type.TryGetSequenceType(),
+                    shaperLambda.ReturnType),
+                innerEnumerable,
+                QueryCompilationContext2.QueryContextParameter,
+                Expression.Constant(shaperLambda.Compile()));
+        }
+
+        private static readonly MethodInfo _queryMethodInfo
+            = typeof(InMemoryShapedQueryExpressionVisitor).GetTypeInfo()
+                .GetDeclaredMethod(nameof(Query));
+
+        private static IEnumerable<ValueBuffer> Query(
+            QueryContext queryContext,
+            IEntityType entityType)
+        {
+            return ((InMemoryQueryContext)queryContext).Store
+                .GetTables(entityType)
+                .SelectMany(t => t.Rows.Select(vs => new ValueBuffer(vs)));
+        }
+
+        private static readonly MethodInfo _shapeMethodInfo
+            = typeof(InMemoryShapedQueryExpressionVisitor).GetTypeInfo().GetDeclaredMethod(nameof(_Shape));
+
+        private static IEnumerable<TResult> _Shape<TIn, TResult>(
+            IEnumerable<TIn> innerEnumerable,
+            QueryContext queryContext,
+            Func<QueryContext, TIn, TResult> shaper)
+        {
+            foreach (var valueBuffer in innerEnumerable)
+            {
+                yield return shaper(queryContext, valueBuffer);
+            }
+        }
+
         private class InMemoryProjectionBindingRemovingExpressionVisitor : ExpressionVisitor
         {
             private readonly InMemoryQueryExpression _queryExpression;
@@ -105,81 +156,5 @@ namespace Microsoft.EntityFrameworkCore.InMemory.Query.PipeLine
                 return base.VisitExtension(extensionExpression);
             }
         }
-
-        protected override Expression VisitShapedQueryExpression(ShapedQueryExpression shapedQueryExpression)
-        {
-            var shapedQuery = (InMemoryShapedQueryExpression)shapedQueryExpression;
-            var inMemoryQueryExpression = (InMemoryQueryExpression)shapedQuery.QueryExpression;
-
-            var innerEnumerable = Visit(shapedQuery.QueryExpression);
-
-            var shaperLambda = InjectEntityMaterializer(shapedQuery.ShaperExpression);
-
-            var newBody = new InMemoryProjectionBindingRemovingExpressionVisitor(inMemoryQueryExpression)
-                .Visit(shaperLambda.Body);
-
-            shaperLambda = Expression.Lambda(
-                newBody,
-                QueryCompilationContext2.QueryContextParameter,
-                InMemoryQueryExpression.ValueBufferParameter);
-
-            if (inMemoryQueryExpression.SingleResult)
-            {
-                return Expression.Call(
-                _shapeSingleMethodInfo.MakeGenericMethod(
-                    innerEnumerable.Type.TryGetSequenceType(),
-                    shaperLambda.ReturnType),
-                innerEnumerable,
-                QueryCompilationContext2.QueryContextParameter,
-                Expression.Constant(shaperLambda.Compile()));
-            }
-
-            return Expression.Call(
-                _shapeEnumerableMethodInfo.MakeGenericMethod(
-                    innerEnumerable.Type.TryGetSequenceType(),
-                    shaperLambda.ReturnType),
-                innerEnumerable,
-                QueryCompilationContext2.QueryContextParameter,
-                Expression.Constant(shaperLambda.Compile()));
-        }
-
-        private static readonly MethodInfo _queryMethodInfo
-            = typeof(InMemoryShapedQueryExpressionVisitor).GetTypeInfo()
-                .GetDeclaredMethod(nameof(Query));
-
-        private static IEnumerable<ValueBuffer> Query(
-            QueryContext queryContext,
-            IEntityType entityType)
-        {
-            return ((InMemoryQueryContext)queryContext).Store
-                .GetTables(entityType)
-                .SelectMany(t => t.Rows.Select(vs => new ValueBuffer(vs)));
-        }
-
-        private static readonly MethodInfo _shapeEnumerableMethodInfo
-            = typeof(InMemoryShapedQueryExpressionVisitor).GetTypeInfo().GetDeclaredMethod(nameof(_ShapeEnumerable));
-
-        private static IEnumerable<TResult> _ShapeEnumerable<TIn, TResult>(
-            IEnumerable<TIn> innerEnumerable,
-            QueryContext queryContext,
-            Func<QueryContext, TIn, TResult> shaper)
-        {
-            foreach (var valueBuffer in innerEnumerable)
-            {
-                yield return shaper(queryContext, valueBuffer);
-            }
-        }
-
-        private static readonly MethodInfo _shapeSingleMethodInfo
-            = typeof(InMemoryShapedQueryExpressionVisitor).GetTypeInfo().GetDeclaredMethod(nameof(_ShapeSingle));
-
-        private static TResult _ShapeSingle<TIn, TResult>(
-            IEnumerable<TIn> innerEnumerable,
-            QueryContext queryContext,
-            Func<QueryContext, TIn, TResult> shaper)
-        {
-            return shaper(queryContext, innerEnumerable.First());
-        }
     }
-
 }

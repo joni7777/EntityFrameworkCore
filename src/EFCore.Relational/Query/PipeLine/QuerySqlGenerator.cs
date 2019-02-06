@@ -65,19 +65,66 @@ namespace Microsoft.EntityFrameworkCore.Relational.Query.PipeLine
                 case SelectExpression selectExpression:
                     _relationalCommandBuilder.Append("SELECT ");
 
-                    GenerateList(selectExpression.Projection, e => Visit(e));
+                    if (selectExpression.Limit != null
+                        && selectExpression.Offset == null)
+                    {
+                        _relationalCommandBuilder.Append("TOP(");
 
-                    _relationalCommandBuilder.AppendLine()
-                        .Append("FROM ");
+                        Visit(selectExpression.Limit);
 
-                    GenerateList(selectExpression.Tables, e => Visit(e), sql => sql.AppendLine());
+                        _relationalCommandBuilder.Append(") ");
+                    }
+
+                    if (selectExpression.Projection.Any())
+                    {
+                        GenerateList(selectExpression.Projection, e => Visit(e));
+                    }
+                    else
+                    {
+                        _relationalCommandBuilder.Append("1");
+                    }
+
+                    if (selectExpression.Tables.Any())
+                    {
+                        _relationalCommandBuilder.AppendLine()
+                            .Append("FROM ");
+
+                        GenerateList(selectExpression.Tables, e => Visit(e), sql => sql.AppendLine());
+                    }
 
                     if (selectExpression.Predicate != null)
                     {
                         _relationalCommandBuilder.AppendLine()
-                        .Append("WHERE ");
+                            .Append("WHERE ");
 
                         Visit(selectExpression.Predicate);
+                    }
+
+                    if (selectExpression.Orderings.Any())
+                    {
+                        _relationalCommandBuilder.AppendLine()
+                            .Append("ORDER BY ");
+
+                        GenerateList(selectExpression.Orderings, e => Visit(e));
+                    }
+
+                    if (selectExpression.Offset != null)
+                    {
+                        _relationalCommandBuilder.AppendLine()
+                            .Append("OFFSET ");
+
+                        Visit(selectExpression.Offset);
+
+                        _relationalCommandBuilder.Append(" ROWS");
+
+                        if (selectExpression.Limit != null)
+                        {
+                            _relationalCommandBuilder.Append(" FETCH NEXT ");
+
+                            Visit(selectExpression.Limit);
+
+                            _relationalCommandBuilder.Append(" ROWS ONLY");
+                        }
                     }
 
                     return selectExpression;
@@ -98,22 +145,23 @@ namespace Microsoft.EntityFrameworkCore.Relational.Query.PipeLine
                     return tableExpression;
 
                 case SqlExpression sqlExpression:
-                    var innerExpression = sqlExpression.Expression;
-                    if (innerExpression is ConstantExpression constantExpression)
                     {
-                        _relationalCommandBuilder
-                            .Append(GenerateConstantLiteral(constantExpression.Value, sqlExpression.TypeMapping));
+                        var innerExpression = sqlExpression.Expression;
+                        if (innerExpression is ConstantExpression constantExpression)
+                        {
+                            _relationalCommandBuilder
+                                .Append(GenerateConstantLiteral(constantExpression.Value, sqlExpression.TypeMapping));
+                        }
+                        else if (innerExpression is ParameterExpression parameterExpression)
+                        {
+                            _relationalCommandBuilder
+                                .Append(GenerateParameter(parameterExpression, sqlExpression.TypeMapping));
+                        }
+                        else
+                        {
+                            Visit(innerExpression);
+                        }
                     }
-                    else if (innerExpression is ParameterExpression parameterExpression)
-                    {
-                        _relationalCommandBuilder
-                            .Append(GenerateParameter(parameterExpression, sqlExpression.TypeMapping));
-                    }
-                    else
-                    {
-                        Visit(innerExpression);
-                    }
-
                     return sqlExpression;
 
                 case SqlCastExpression sqlCastExpression:
@@ -124,6 +172,28 @@ namespace Microsoft.EntityFrameworkCore.Relational.Query.PipeLine
                     _relationalCommandBuilder.Append(")");
 
                     return sqlCastExpression;
+
+                case OrderingExpression orderingExpression:
+                    {
+                        var innerExpression = orderingExpression.Expression.Expression;
+                        if (innerExpression is ConstantExpression constantExpression
+                            || innerExpression is ParameterExpression parameterExpression)
+                        {
+                            _relationalCommandBuilder
+                                .Append("(SELECT 1)");
+                        }
+                        else
+                        {
+                            Visit(orderingExpression.Expression);
+
+                            if (!orderingExpression.Ascending)
+                            {
+                                _relationalCommandBuilder.Append(" DESC");
+                            }
+                        }
+                    }
+
+                    return orderingExpression;
 
             }
 

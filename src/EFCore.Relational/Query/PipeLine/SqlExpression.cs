@@ -21,6 +21,7 @@ namespace Microsoft.EntityFrameworkCore.Relational.Query.PipeLine
         {
             Expression = expression;
             IsCondition = condition;
+            TypeMapping = null;
         }
 
         public RelationalTypeMapping TypeMapping { get; }

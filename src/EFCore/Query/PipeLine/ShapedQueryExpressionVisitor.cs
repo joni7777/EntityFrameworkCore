@@ -14,6 +14,14 @@ namespace Microsoft.EntityFrameworkCore.Query.PipeLine
 {
     public abstract class ShapedQueryExpressionVisitor : ExpressionVisitor
     {
+        private static MethodInfo _singleMethodInfo
+            = typeof(Enumerable).GetTypeInfo().GetDeclaredMethods(nameof(Enumerable.Single))
+                .Single(mi => mi.GetParameters().Length == 1);
+
+        private static MethodInfo _singleOrDefaultMethodInfo
+            = typeof(Enumerable).GetTypeInfo().GetDeclaredMethods(nameof(Enumerable.SingleOrDefault))
+                .Single(mi => mi.GetParameters().Length == 1);
+
         private readonly IEntityMaterializerSource _entityMaterializerSource;
 
         public ShapedQueryExpressionVisitor(IEntityMaterializerSource entityMaterializerSource)
@@ -26,7 +34,24 @@ namespace Microsoft.EntityFrameworkCore.Query.PipeLine
             switch (extensionExpression)
             {
                 case ShapedQueryExpression shapedQueryExpression:
-                    return VisitShapedQueryExpression(shapedQueryExpression);
+                    var serverEnumerable = VisitShapedQueryExpression(shapedQueryExpression);
+                    switch (shapedQueryExpression.ResultType)
+                    {
+                        case ResultType.Enumerable:
+                            return serverEnumerable;
+
+                        case ResultType.Single:
+                            return Expression.Call(
+                                _singleMethodInfo.MakeGenericMethod(serverEnumerable.Type.TryGetSequenceType()),
+                                serverEnumerable);
+
+                        case ResultType.SingleWithDefault:
+                            return Expression.Call(
+                                _singleOrDefaultMethodInfo.MakeGenericMethod(serverEnumerable.Type.TryGetSequenceType()),
+                                serverEnumerable);
+                    }
+
+                    break;
             }
 
             return base.VisitExtension(extensionExpression);

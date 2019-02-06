@@ -41,17 +41,11 @@ namespace Microsoft.EntityFrameworkCore.InMemory.Query.PipeLine
         public static MethodInfo Take = GetMethod(nameof(Enumerable.Take), 1);
         public static MethodInfo Skip = GetMethod(nameof(Enumerable.Skip), 1);
 
-        public static MethodInfo First = GetMethod(nameof(Enumerable.First));
         public static MethodInfo FirstPredicate = GetMethod(nameof(Enumerable.First), 1);
-        public static MethodInfo FirstOrDefault = GetMethod(nameof(Enumerable.FirstOrDefault));
         public static MethodInfo FirstOrDefaultPredicate = GetMethod(nameof(Enumerable.FirstOrDefault), 1);
-        public static MethodInfo Last = GetMethod(nameof(Enumerable.Last));
         public static MethodInfo LastPredicate = GetMethod(nameof(Enumerable.Last), 1);
-        public static MethodInfo LastOrDefault = GetMethod(nameof(Enumerable.LastOrDefault));
         public static MethodInfo LastOrDefaultPredicate = GetMethod(nameof(Enumerable.LastOrDefault), 1);
-        public static MethodInfo Single = GetMethod(nameof(Enumerable.Single));
         public static MethodInfo SinglePredicate = GetMethod(nameof(Enumerable.Single), 1);
-        public static MethodInfo SingleOrDefault = GetMethod(nameof(Enumerable.SingleOrDefault));
         public static MethodInfo SingleOrDefaultPredicate = GetMethod(nameof(Enumerable.SingleOrDefault), 1);
 
         public static MethodInfo GetAggregateMethod(string methodName, Type elementType, int parameterCount = 0)

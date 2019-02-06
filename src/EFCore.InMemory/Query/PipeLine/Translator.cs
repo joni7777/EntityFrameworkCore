@@ -11,11 +11,11 @@ using Microsoft.EntityFrameworkCore.Query.PipeLine;
 
 namespace Microsoft.EntityFrameworkCore.InMemory.Query.PipeLine
 {
-    public class Translator : ExpressionVisitor
+    public class InMemoryExpressionTranslatingExpressionVisitor : ExpressionVisitor
     {
         private readonly InMemoryQueryExpression _inMemoryQueryExpression;
 
-        public Translator(InMemoryQueryExpression inMemoryQueryExpression)
+        public InMemoryExpressionTranslatingExpressionVisitor(InMemoryQueryExpression inMemoryQueryExpression)
         {
             _inMemoryQueryExpression = inMemoryQueryExpression;
         }
@@ -80,7 +80,7 @@ namespace Microsoft.EntityFrameworkCore.InMemory.Query.PipeLine
         }
 
         private static readonly MethodInfo _getParameterValueMethodInfo
-            = typeof(Translator)
+            = typeof(InMemoryExpressionTranslatingExpressionVisitor)
                 .GetTypeInfo().GetDeclaredMethod(nameof(GetParameterValue));
 
 #pragma warning disable IDE0052 // Remove unread private members

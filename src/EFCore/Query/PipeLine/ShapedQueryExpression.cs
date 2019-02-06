@@ -10,6 +10,7 @@ namespace Microsoft.EntityFrameworkCore.Query.PipeLine
     public abstract class ShapedQueryExpression : Expression
     {
         public Expression QueryExpression { get; set; }
+        public ResultType ResultType { get; set; }
 
         public LambdaExpression ShaperExpression { get; set; }
 
@@ -18,6 +19,15 @@ namespace Microsoft.EntityFrameworkCore.Query.PipeLine
         public override ExpressionType NodeType => ExpressionType.Extension;
 
         public override bool CanReduce => false;
+    }
+
+    public enum ResultType
+    {
+#pragma warning disable SA1602 // Enumeration items should be documented
+        Enumerable,
+        Single,
+        SingleWithDefault
+#pragma warning restore SA1602 // Enumeration items should be documented
     }
 
 }
