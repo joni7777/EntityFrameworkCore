@@ -1113,15 +1113,15 @@ FROM [Products] AS [p]
 WHERE [p].[Discontinued] = 0");
         }
 
-        public override async Task Where_bool_client_side_negated(bool isAsync)
-        {
-            await base.Where_bool_client_side_negated(isAsync);
+//        public override async Task Where_bool_client_side_negated(bool isAsync)
+//        {
+//            await base.Where_bool_client_side_negated(isAsync);
 
-            AssertSql(
-                @"SELECT [p].[ProductID], [p].[Discontinued], [p].[ProductName], [p].[SupplierID], [p].[UnitPrice], [p].[UnitsInStock]
-FROM [Products] AS [p]
-WHERE [p].[Discontinued] = 1");
-        }
+//            AssertSql(
+//                @"SELECT [p].[ProductID], [p].[Discontinued], [p].[ProductName], [p].[SupplierID], [p].[UnitPrice], [p].[UnitsInStock]
+//FROM [Products] AS [p]
+//WHERE [p].[Discontinued] = 1");
+//        }
 
         public override async Task Where_bool_member_negated_twice(bool isAsync)
         {

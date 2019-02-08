@@ -12,16 +12,29 @@ namespace Microsoft.EntityFrameworkCore.Relational.Query.PipeLine
 {
     public class RelationalQueryableMethodTranslatingExpressionVisitor : QueryableMethodTranslatingExpressionVisitor
     {
+        private readonly RelationalSqlTranslatingExpressionVisitor _sqlTranslator;
         private readonly IRelationalTypeMappingSource _typeMappingSource;
 
-        public RelationalQueryableMethodTranslatingExpressionVisitor(IRelationalTypeMappingSource typeMappingSource)
+        public RelationalQueryableMethodTranslatingExpressionVisitor(
+            IRelationalTypeMappingSource typeMappingSource,
+            IMethodCallTranslatorProvider methodCallTranslatorProvider)
         {
+            _sqlTranslator = new RelationalSqlTranslatingExpressionVisitor(typeMappingSource, methodCallTranslatorProvider);
             _typeMappingSource = typeMappingSource;
         }
 
         protected override ShapedQueryExpression TranslateAll(ShapedQueryExpression source, LambdaExpression predicate)
         {
-            throw new NotImplementedException();
+            var translation = TranslateLambdaExpression(source, predicate, true);
+
+            if (translation?.IsCondition == true)
+            {
+                ((SelectExpression)source.QueryExpression).ApplyPredicate(translation);
+
+                return source;
+            }
+
+            throw new InvalidOperationException();
         }
 
         protected override ShapedQueryExpression TranslateAny(ShapedQueryExpression source, LambdaExpression predicate) => throw new NotImplementedException();
@@ -34,7 +47,45 @@ namespace Microsoft.EntityFrameworkCore.Relational.Query.PipeLine
 
         protected override ShapedQueryExpression TranslateContains(ShapedQueryExpression source, Expression item) => throw new NotImplementedException();
 
-        protected override ShapedQueryExpression TranslateCount(ShapedQueryExpression source, LambdaExpression predicate) => throw new NotImplementedException();
+        protected override ShapedQueryExpression TranslateCount(ShapedQueryExpression source, LambdaExpression predicate)
+        {
+            if (predicate != null)
+            {
+                source = TranslateWhere(source, predicate);
+            }
+
+            var selectExpression = (SelectExpression)source.QueryExpression;
+
+            var translation = new SqlExpression(
+                new SqlFunctionExpression(
+                    null,
+                    "COUNT",
+                    null,
+                    new[]
+                    {
+                        new SqlExpression(
+                            new SqlFragmentExpression("*", typeof(object)),
+                            _typeMappingSource.FindMapping(typeof(string)))
+                    },
+                    typeof(int)),
+                _typeMappingSource.FindMapping(typeof(int))
+                );
+
+            var _projectionMapping = new Dictionary<ProjectionMember, Expression>
+            {
+                { new ProjectionMember(), translation }
+            };
+
+            selectExpression.ClearOrdering();
+            selectExpression.ApplyProjection(_projectionMapping);
+
+            source.ShaperExpression
+                = Expression.Lambda(
+                    new ProjectionBindingExpression(selectExpression, new ProjectionMember(), typeof(int)),
+                    source.ShaperExpression.Parameters);
+
+            return source;
+        }
 
         protected override ShapedQueryExpression TranslateDefaultIfEmpty(ShapedQueryExpression source, Expression defaultValue) => throw new NotImplementedException();
 
@@ -44,7 +95,20 @@ namespace Microsoft.EntityFrameworkCore.Relational.Query.PipeLine
 
         protected override ShapedQueryExpression TranslateExcept(ShapedQueryExpression source1, ShapedQueryExpression source2) => throw new NotImplementedException();
 
-        protected override ShapedQueryExpression TranslateFirstOrDefault(ShapedQueryExpression source, LambdaExpression predicate, bool returnDefault) => throw new NotImplementedException();
+        protected override ShapedQueryExpression TranslateFirstOrDefault(ShapedQueryExpression source, LambdaExpression predicate, bool returnDefault)
+        {
+            if (predicate != null)
+            {
+                source = TranslateWhere(source, predicate);
+            }
+
+            var selectExpression = (SelectExpression)source.QueryExpression;
+
+            selectExpression.ApplyLimit(
+                new SqlExpression(Expression.Constant(1), _typeMappingSource.FindMapping(typeof(int))));
+
+            return source;
+        }
 
         protected override ShapedQueryExpression TranslateGroupBy(ShapedQueryExpression source, LambdaExpression keySelector, LambdaExpression elementSelector, LambdaExpression resultSelector) => throw new NotImplementedException();
 
@@ -54,7 +118,22 @@ namespace Microsoft.EntityFrameworkCore.Relational.Query.PipeLine
 
         protected override ShapedQueryExpression TranslateJoin(ShapedQueryExpression outer, ShapedQueryExpression inner, LambdaExpression outerKeySelector, LambdaExpression innerKeySelector, LambdaExpression resultSelector) => throw new NotImplementedException();
 
-        protected override ShapedQueryExpression TranslateLastOrDefault(ShapedQueryExpression source, LambdaExpression predicate, bool returnDefault) => throw new NotImplementedException();
+        protected override ShapedQueryExpression TranslateLastOrDefault(ShapedQueryExpression source, LambdaExpression predicate, bool returnDefault)
+        {
+            if (predicate != null)
+            {
+                source = TranslateWhere(source, predicate);
+            }
+
+            var selectExpression = (SelectExpression)source.QueryExpression;
+
+            selectExpression.Reverse();
+
+            selectExpression.ApplyLimit(
+                new SqlExpression(Expression.Constant(1), _typeMappingSource.FindMapping(typeof(int))));
+
+            return source;
+        }
 
         protected override ShapedQueryExpression TranslateLongCount(ShapedQueryExpression source, LambdaExpression predicate) => throw new NotImplementedException();
 
@@ -94,9 +173,8 @@ namespace Microsoft.EntityFrameworkCore.Relational.Query.PipeLine
 
             var newSelectorBody = new ReplacingExpressionVisitor(parameterBindings).Visit(selector.Body);
 
-            newSelectorBody = new RelationalProjectionBindingExpressionVisitor(
-                _typeMappingSource, (SelectExpression)source.QueryExpression)
-                    .Translate(newSelectorBody);
+            newSelectorBody = new RelationalProjectionBindingExpressionVisitor(_sqlTranslator)
+                .Translate((SelectExpression)source.QueryExpression, newSelectorBody);
 
             source.ShaperExpression = Expression.Lambda(newSelectorBody, source.ShaperExpression.Parameters);
 
@@ -107,7 +185,20 @@ namespace Microsoft.EntityFrameworkCore.Relational.Query.PipeLine
 
         protected override ShapedQueryExpression TranslateSelectMany(ShapedQueryExpression source, LambdaExpression selector) => throw new NotImplementedException();
 
-        protected override ShapedQueryExpression TranslateSingleOrDefault(ShapedQueryExpression source, LambdaExpression predicate, bool returnDefault) => throw new NotImplementedException();
+        protected override ShapedQueryExpression TranslateSingleOrDefault(ShapedQueryExpression source, LambdaExpression predicate, bool returnDefault)
+        {
+            if (predicate != null)
+            {
+                source = TranslateWhere(source, predicate);
+            }
+
+            var selectExpression = (SelectExpression)source.QueryExpression;
+
+            selectExpression.ApplyLimit(
+                new SqlExpression(Expression.Constant(1), _typeMappingSource.FindMapping(typeof(int))));
+
+            return source;
+        }
 
         protected override ShapedQueryExpression TranslateSkip(ShapedQueryExpression source, Expression count)
         {
@@ -177,8 +268,7 @@ namespace Microsoft.EntityFrameworkCore.Relational.Query.PipeLine
 
         private SqlExpression TranslateExpression(SelectExpression selectExpression, Expression expression, bool condition)
         {
-            return new RelationalSqlTranslatingExpressionVisitor(_typeMappingSource, selectExpression)
-                .Translate(expression, condition);
+            return _sqlTranslator.Translate(selectExpression, expression, condition);
         }
 
         private SqlExpression TranslateLambdaExpression(

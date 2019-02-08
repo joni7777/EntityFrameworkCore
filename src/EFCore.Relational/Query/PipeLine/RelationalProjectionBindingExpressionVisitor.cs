@@ -5,33 +5,38 @@ using System;
 using System.Collections.Generic;
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore.Query.PipeLine;
-using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Microsoft.EntityFrameworkCore.Relational.Query.PipeLine
 {
     public class RelationalProjectionBindingExpressionVisitor : ExpressionVisitor
     {
-        private readonly SelectExpression _selectExpression;
         private readonly RelationalSqlTranslatingExpressionVisitor _sqlTranslator;
+
+        private SelectExpression _selectExpression;
         private readonly IDictionary<ProjectionMember, Expression> _projectionMapping
             = new Dictionary<ProjectionMember, Expression>();
 
         private readonly Stack<ProjectionMember> _projectionMembers = new Stack<ProjectionMember>();
 
         public RelationalProjectionBindingExpressionVisitor(
-            IRelationalTypeMappingSource typeMappingSource, SelectExpression selectExpression)
+            RelationalSqlTranslatingExpressionVisitor sqlTranslatingExpressionVisitor)
         {
-            _sqlTranslator = new RelationalSqlTranslatingExpressionVisitor(typeMappingSource, selectExpression);
-            _selectExpression = selectExpression;
+            _sqlTranslator = sqlTranslatingExpressionVisitor;
         }
 
-        public Expression Translate(Expression expression)
+        public Expression Translate(SelectExpression selectExpression, Expression expression)
         {
+            _selectExpression = selectExpression;
+
             _projectionMembers.Push(new ProjectionMember());
 
             var result = Visit(expression);
 
             _selectExpression.ApplyProjection(_projectionMapping);
+
+            _selectExpression = null;
+            _projectionMembers.Clear();
+            _projectionMapping.Clear();
 
             return result;
         }
@@ -45,7 +50,7 @@ namespace Microsoft.EntityFrameworkCore.Relational.Query.PipeLine
 
             if (!(expression is NewExpression))
             {
-                var translation = _sqlTranslator.Translate(expression, false);
+                var translation = _sqlTranslator.Translate(_selectExpression, expression, false);
 
                 if (!(translation is SqlExpression))
                 {

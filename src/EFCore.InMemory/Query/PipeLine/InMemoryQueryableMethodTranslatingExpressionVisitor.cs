@@ -16,12 +16,15 @@ namespace Microsoft.EntityFrameworkCore.InMemory.Query.PipeLine
         private readonly InMemoryQueryableMethodTranslatingExpressionVisitorFactory _inMemoryQueryableMethodTranslatingExpressionVisitorFactory;
         private readonly IDictionary<Expression, Expression> _parameterBindings;
 
+        private readonly InMemoryExpressionTranslatingExpressionVisitor _expressionTranslator;
+
         public InMemoryQueryableMethodTranslatingExpressionVisitor(
             InMemoryQueryableMethodTranslatingExpressionVisitorFactory inMemoryQueryableMethodTranslatingExpressionVisitorFactory,
             IDictionary<Expression, Expression> parameterBindings)
         {
             _inMemoryQueryableMethodTranslatingExpressionVisitorFactory = inMemoryQueryableMethodTranslatingExpressionVisitorFactory;
             _parameterBindings = parameterBindings;
+            _expressionTranslator = new InMemoryExpressionTranslatingExpressionVisitor();
         }
 
         protected override ShapedQueryExpression TranslateAll(ShapedQueryExpression source, LambdaExpression predicate)
@@ -236,9 +239,8 @@ namespace Microsoft.EntityFrameworkCore.InMemory.Query.PipeLine
 
             var newSelectorBody = new ReplacingExpressionVisitor(parameterBindings).Visit(selector.Body);
 
-            newSelectorBody = new InMemoryProjectionBindingExpressionVisitor(
-                (InMemoryQueryExpression)source.QueryExpression)
-                    .Translate(newSelectorBody);
+            newSelectorBody = new InMemoryProjectionBindingExpressionVisitor(_expressionTranslator)
+                    .Translate((InMemoryQueryExpression)source.QueryExpression, newSelectorBody);
 
             source.ShaperExpression = Expression.Lambda(newSelectorBody, source.ShaperExpression.Parameters);
 
@@ -324,14 +326,14 @@ namespace Microsoft.EntityFrameworkCore.InMemory.Query.PipeLine
             return source;
         }
 
-        private static Expression TranslateExpression(
+        private Expression TranslateExpression(
             InMemoryQueryExpression inMemoryQueryExpression,
             Expression expression)
         {
-            return new InMemoryExpressionTranslatingExpressionVisitor(inMemoryQueryExpression).Visit(expression);
+            return _expressionTranslator.Translate(inMemoryQueryExpression, expression);
         }
 
-        private static LambdaExpression TranslateLambdaExpression(
+        private LambdaExpression TranslateLambdaExpression(
             ShapedQueryExpression shapedQueryExpression, LambdaExpression lambdaExpression)
         {
             var parameterBindings = new Dictionary<Expression, Expression>
@@ -346,7 +348,7 @@ namespace Microsoft.EntityFrameworkCore.InMemory.Query.PipeLine
                 InMemoryQueryExpression.ValueBufferParameter);
         }
 
-        private static ShapedQueryExpression TranslateScalarAggregate(
+        private ShapedQueryExpression TranslateScalarAggregate(
             ShapedQueryExpression source, LambdaExpression selector, string methodName)
         {
             var inMemoryQueryExpression = (InMemoryQueryExpression)source.QueryExpression;
@@ -371,7 +373,7 @@ namespace Microsoft.EntityFrameworkCore.InMemory.Query.PipeLine
             return source;
         }
 
-        private static ShapedQueryExpression TranslateSingleResultOperator(
+        private ShapedQueryExpression TranslateSingleResultOperator(
             ShapedQueryExpression source, LambdaExpression predicate, MethodInfo method)
         {
             var inMemoryQueryExpression = (InMemoryQueryExpression)source.QueryExpression;

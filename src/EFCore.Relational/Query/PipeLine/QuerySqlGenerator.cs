@@ -195,6 +195,33 @@ namespace Microsoft.EntityFrameworkCore.Relational.Query.PipeLine
 
                     return orderingExpression;
 
+                case SqlFunctionExpression sqlFunctionExpression:
+                    {
+                        if (sqlFunctionExpression.Schema != null)
+                        {
+                            _relationalCommandBuilder
+                                .Append(_sqlGenerationHelper.DelimitIdentifier(sqlFunctionExpression.Schema))
+                                .Append(".")
+                                .Append(_sqlGenerationHelper.DelimitIdentifier(sqlFunctionExpression.FunctionName));
+                        }
+                        else
+                        {
+                            _relationalCommandBuilder.Append(sqlFunctionExpression.FunctionName);
+                        }
+
+                        _relationalCommandBuilder.Append("(");
+
+                        GenerateList(sqlFunctionExpression.Arguments, e => Visit(e));
+
+                        _relationalCommandBuilder.Append(")");
+
+                        return sqlFunctionExpression;
+                    }
+
+                case SqlFragmentExpression sqlFragmentExpression:
+                    _relationalCommandBuilder.Append(sqlFragmentExpression.Sql);
+
+                    return sqlFragmentExpression;
             }
 
             return base.VisitExtension(extensionExpression);

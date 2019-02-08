@@ -27,6 +27,11 @@ namespace Microsoft.EntityFrameworkCore.Relational.Query.PipeLine
             switch (binaryExpression.NodeType)
             {
                 case ExpressionType.Equal:
+                case ExpressionType.GreaterThan:
+                case ExpressionType.GreaterThanOrEqual:
+                case ExpressionType.LessThan:
+                case ExpressionType.LessThanOrEqual:
+                case ExpressionType.NotEqual:
                     if (left is SqlExpression leftSql)
                     {
                         _currentTypeMapping = leftSql.TypeMapping;

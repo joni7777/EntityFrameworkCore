@@ -13,11 +13,20 @@ namespace Microsoft.EntityFrameworkCore.InMemory.Query.PipeLine
 {
     public class InMemoryExpressionTranslatingExpressionVisitor : ExpressionVisitor
     {
-        private readonly InMemoryQueryExpression _inMemoryQueryExpression;
+        private InMemoryQueryExpression _inMemoryQueryExpression;
 
-        public InMemoryExpressionTranslatingExpressionVisitor(InMemoryQueryExpression inMemoryQueryExpression)
+        public Expression Translate(InMemoryQueryExpression inMemoryQueryExpression, Expression expression)
         {
             _inMemoryQueryExpression = inMemoryQueryExpression;
+
+            try
+            {
+                return Visit(expression);
+            }
+            finally
+            {
+                _inMemoryQueryExpression = null;
+            }
         }
 
         protected override Expression VisitMember(MemberExpression memberExpression)

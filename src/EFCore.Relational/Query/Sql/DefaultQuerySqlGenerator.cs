@@ -1078,21 +1078,6 @@ namespace Microsoft.EntityFrameworkCore.Query.Sql
             _typeMapping = parentTypeMapping;
         }
 
-        private static void AddInExpressionValues(
-            object value, List<Expression> inConstants, Expression expression)
-        {
-            if (value is IEnumerable valuesEnumerable
-                && value.GetType() != typeof(string)
-                && value.GetType() != typeof(byte[]))
-            {
-                inConstants.AddRange(valuesEnumerable.Cast<object>().Select(Expression.Constant));
-            }
-            else
-            {
-                inConstants.Add(expression);
-            }
-        }
-
         /// <summary>
         ///     Visit an InnerJoinExpression.
         /// </summary>

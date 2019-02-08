@@ -3,33 +3,38 @@
 
 using System.Collections.Generic;
 using System.Linq.Expressions;
-using System.Reflection;
 using Microsoft.EntityFrameworkCore.Query.PipeLine;
 
 namespace Microsoft.EntityFrameworkCore.InMemory.Query.PipeLine
 {
     public class InMemoryProjectionBindingExpressionVisitor : ExpressionVisitor
     {
-        private readonly InMemoryQueryExpression _queryExpression;
-        private readonly InMemoryExpressionTranslatingExpressionVisitor _translator;
+        private InMemoryQueryExpression _queryExpression;
         private readonly IDictionary<ProjectionMember, Expression> _projectionMapping
             = new Dictionary<ProjectionMember, Expression>();
 
         private readonly Stack<ProjectionMember> _projectionMembers = new Stack<ProjectionMember>();
+        private readonly InMemoryExpressionTranslatingExpressionVisitor _expressionTranslatingExpressionVisitor;
 
-        public InMemoryProjectionBindingExpressionVisitor(InMemoryQueryExpression queryExpression)
+        public InMemoryProjectionBindingExpressionVisitor(
+            InMemoryExpressionTranslatingExpressionVisitor expressionTranslatingExpressionVisitor)
         {
-            _queryExpression = queryExpression;
-            _translator = new InMemoryExpressionTranslatingExpressionVisitor(queryExpression);
+            _expressionTranslatingExpressionVisitor = expressionTranslatingExpressionVisitor;
         }
 
-        public Expression Translate(Expression expression)
+        public Expression Translate(InMemoryQueryExpression queryExpression, Expression expression)
         {
+            _queryExpression = queryExpression;
+
             _projectionMembers.Push(new ProjectionMember());
 
             var result = Visit(expression);
 
             _queryExpression.ApplyProjection(_projectionMapping);
+
+            _queryExpression = null;
+            _projectionMapping.Clear();
+            _projectionMembers.Clear();
 
             return result;
         }
@@ -43,7 +48,7 @@ namespace Microsoft.EntityFrameworkCore.InMemory.Query.PipeLine
 
             if (!(expression is NewExpression))
             {
-                var translation = _translator.Visit(expression);
+                var translation = _expressionTranslatingExpressionVisitor.Translate(_queryExpression, expression);
 
                 _projectionMapping[_projectionMembers.Peek()] = translation;
 

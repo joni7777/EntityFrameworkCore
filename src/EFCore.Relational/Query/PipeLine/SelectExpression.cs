@@ -75,7 +75,14 @@ namespace Microsoft.EntityFrameworkCore.Relational.Query.PipeLine
 
         public void ApplyPredicate(SqlExpression expression)
         {
-            _predicate = expression;
+            if (_predicate == null)
+            {
+                _predicate = expression;
+            }
+            else
+            {
+                _predicate = new SqlExpression(AndAlso(_predicate, expression), true);
+            }
         }
 
         public override ExpressionType NodeType => ExpressionType.Extension;
@@ -109,6 +116,26 @@ namespace Microsoft.EntityFrameworkCore.Relational.Query.PipeLine
         public void ApplyOffset(SqlExpression sqlExpression)
         {
             _offset = sqlExpression;
+        }
+
+        public void Reverse()
+        {
+            var existingOrdering = _orderings.ToArray();
+
+            _orderings.Clear();
+
+            for (var i = 0; i < existingOrdering.Length; i++)
+            {
+                _orderings.Add(
+                    new OrderingExpression(
+                        existingOrdering[i].Expression,
+                        !existingOrdering[i].Ascending));
+            }
+        }
+
+        public void ClearOrdering()
+        {
+            _orderings.Clear();
         }
     }
 
